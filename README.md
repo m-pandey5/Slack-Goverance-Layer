@@ -1,6 +1,6 @@
-# Compass
+# Slack Governance Layer
 
-Compass is a governance proxy for Slack agents. It starts with two gates:
+Compass is an MCP proxy and governance layer for Slack agents. It starts with two gates:
 
 1. `/slack/events` verifies Slack signatures and evaluates inbound Slack events through `GovernanceKernel`.
 2. `/mcp-proxy` evaluates outbound MCP tool calls through `McpGateway` before forwarding allowed calls to Slack MCP.
@@ -33,7 +33,7 @@ dotnet user-secrets set "Slack:BotToken" "<your-bot-token>"
 Run the API:
 
 ```bash
-dotnet run --urls http://localhost:5000
+dotnet run --project Compass.Api
 ```
 
 In another terminal:
