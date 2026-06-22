@@ -1,0 +1,19 @@
+apiVersion: governance.toolkit/v1
+name: mcp-tools-policy
+default_action: allow
+rules:
+  - name: deny-admin-tools
+    condition: "tool_name == 'admin.users.invite'"
+    action: deny
+    priority: 200
+
+  - name: require-approval-destructive
+    condition: "tool_name == 'conversations.archive'"
+    action: require_approval
+    priority: 180
+
+  - name: rate-limit-search
+    condition: "tool_name == 'search_messages'"
+    action: rate_limit
+    limit: "10/minute"
+    priority: 100

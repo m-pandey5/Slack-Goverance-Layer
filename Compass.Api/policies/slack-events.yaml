@@ -1,0 +1,14 @@
+apiVersion: governance.toolkit/v1
+name: slack-events-policy
+default_action: allow
+rules:
+  - name: rate-limit-app-mentions
+    condition: "tool_name == 'SLACK_APP_MENTION'"
+    action: rate_limit
+    limit: "20/minute"
+    priority: 100
+
+  - name: block-private-channel-access
+    condition: "channel_type == 'private'"
+    action: deny
+    priority: 150

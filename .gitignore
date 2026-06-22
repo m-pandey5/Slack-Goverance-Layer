@@ -1,0 +1,11 @@
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local secrets belong in dotnet user-secrets or environment variables.
+*.Development.local.json
