@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\..\agent-governance-toolkit\agent-governance-dotnet\src\AgentGovernance\AgentGovernance.csproj" />
@@ -8,10 +8,16 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>1e38a4da-66b8-46fa-a548-811b7bf3c525</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="policies\*.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+    <PackageReference Include="StackExchange.Redis" Version="3.0.0" />
   </ItemGroup>
 
 </Project>

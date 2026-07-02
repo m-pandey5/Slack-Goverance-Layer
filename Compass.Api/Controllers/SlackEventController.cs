@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentGovernance;
+using Compass.Api.Services;
 using Compass.Api.Security;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,15 +11,18 @@ public sealed class SlackEventController : ControllerBase
 {
     private readonly GovernanceKernel _kernel;
     private readonly SlackRequestVerifier _verifier;
+    private readonly SlackWebClient _slackWebClient;
     private readonly ILogger<SlackEventController> _logger;
 
     public SlackEventController(
         GovernanceKernel kernel,
         SlackRequestVerifier verifier,
+        SlackWebClient slackWebClient,
         ILogger<SlackEventController> logger)
     {
         _kernel = kernel;
         _verifier = verifier;
+        _slackWebClient = slackWebClient;
         _logger = logger;
     }
 
@@ -49,9 +53,13 @@ public sealed class SlackEventController : ControllerBase
         }
 
         var eventType = GetString(slackEvent, "type", "unknown");
-        var userId = GetString(slackEvent, "user", GetString(slackEvent, "bot_id", "unknown"));
+        var botId = GetString(slackEvent, "bot_id", string.Empty);
+        var appId = GetString(slackEvent, "app_id", string.Empty);
+        var subtype = GetString(slackEvent, "subtype", string.Empty);
+        var userId = GetString(slackEvent, "user", string.IsNullOrWhiteSpace(botId) ? "unknown" : botId);
         var channel = GetString(slackEvent, "channel", string.Empty);
         var text = GetString(slackEvent, "text", string.Empty);
+        var threadTs = GetString(slackEvent, "ts", string.Empty);
 
         var agentId = $"did:mesh:slack-{userId}";
         var toolName = $"SLACK_{eventType.ToUpperInvariant()}";
@@ -61,12 +69,29 @@ public sealed class SlackEventController : ControllerBase
             ["channel"] = channel,
             ["channel_type"] = GetString(slackEvent, "channel_type", string.Empty),
             ["event_type"] = eventType,
-            ["slack_user"] = userId
+            ["slack_user"] = userId,
+            ["slack_bot_id"] = botId,
+            ["slack_app_id"] = appId,
+            ["slack_subtype"] = subtype,
+            ["is_third_party_bot_message"] = IsThirdPartyBotMessage(eventType, botId, appId, subtype)
         };
 
         var decision = _kernel.EvaluateToolCall(agentId, toolName, args);
         if (!decision.Allowed)
         {
+            if (!string.IsNullOrWhiteSpace(channel))
+            {
+                var responseText = IsThirdPartyBotMessage(eventType, botId, appId, subtype)
+                    ? $"Compass Governor detected a reactive violation after this Slack message was posted: {decision.Reason}"
+                    : $"Compass Governor blocked this request: {decision.Reason}";
+
+                await _slackWebClient.PostMessageAsync(
+                    channel,
+                    responseText,
+                    threadTs,
+                    HttpContext.RequestAborted);
+            }
+
             return Ok(new
             {
                 status = "blocked",
@@ -88,5 +113,13 @@ public sealed class SlackEventController : ControllerBase
         return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString() ?? fallback
             : fallback;
+    }
+
+    private static bool IsThirdPartyBotMessage(string eventType, string botId, string appId, string subtype)
+    {
+        return string.Equals(eventType, "message", StringComparison.Ordinal) &&
+               (!string.IsNullOrWhiteSpace(botId) ||
+                !string.IsNullOrWhiteSpace(appId) ||
+                string.Equals(subtype, "bot_message", StringComparison.Ordinal));
     }
 }

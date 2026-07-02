@@ -9,3 +9,7 @@ obj/
 
 # Local secrets belong in dotnet user-secrets or environment variables.
 *.Development.local.json
+.env
+**/.env
+**/.slack/
+Compass.Api/data/

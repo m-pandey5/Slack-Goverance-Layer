@@ -5,6 +5,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compass.Api", "Compass.Api\Compass.Api.csproj", "{7C548858-538C-4537-92CC-F885D4BD9F85}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compass.AppHost", "Compass.AppHost\Compass.AppHost.csproj", "{472B61BB-1FF3-4C01-9DA4-CBBE96ACF347}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compass.Api.Tests", "Compass.Api.Tests\Compass.Api.Tests.csproj", "{11747105-E3A9-409E-88CF-BD3455D18AA2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{7C548858-538C-4537-92CC-F885D4BD9F85}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C548858-538C-4537-92CC-F885D4BD9F85}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7C548858-538C-4537-92CC-F885D4BD9F85}.Release|Any CPU.Build.0 = Release|Any CPU
+		{472B61BB-1FF3-4C01-9DA4-CBBE96ACF347}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{472B61BB-1FF3-4C01-9DA4-CBBE96ACF347}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{472B61BB-1FF3-4C01-9DA4-CBBE96ACF347}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{472B61BB-1FF3-4C01-9DA4-CBBE96ACF347}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11747105-E3A9-409E-88CF-BD3455D18AA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11747105-E3A9-409E-88CF-BD3455D18AA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11747105-E3A9-409E-88CF-BD3455D18AA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11747105-E3A9-409E-88CF-BD3455D18AA2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

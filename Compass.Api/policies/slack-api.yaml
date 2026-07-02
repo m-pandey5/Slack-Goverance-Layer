@@ -1,0 +1,18 @@
+apiVersion: governance.toolkit/v1
+name: slack-api-policy
+default_action: allow
+rules:
+  - name: deny-admin-user-invite
+    condition: "tool_name == 'admin.users.invite'"
+    action: deny
+    priority: 200
+
+  - name: deny-file-delete
+    condition: "tool_name == 'files.delete'"
+    action: deny
+    priority: 190
+
+  - name: require-approval-channel-archive
+    condition: "tool_name == 'conversations.archive'"
+    action: require_approval
+    priority: 180
