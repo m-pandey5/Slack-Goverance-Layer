@@ -57,4 +57,17 @@ public sealed class RedisAgentRegistry : IAgentRegistry
         await _database.StringSetAsync(ProxyPrefix + ProxyTokenHasher.HashToken(proxyToken), agent.AgentId);
         await _database.SetAddAsync(AgentIdsKey, agent.AgentId);
     }
+
+    public async Task SuspendAgentAsync(string agentId, CancellationToken cancellationToken = default)
+    {
+        var agent = await GetAgentAsync(agentId, cancellationToken);
+        if (agent is null)
+        {
+            return;
+        }
+
+        var suspended = agent with { Revoked = true };
+        var json = JsonSerializer.Serialize(suspended, JsonOptions);
+        await _database.StringSetAsync(AgentPrefix + agentId, json);
+    }
 }

@@ -1,1 +1,12 @@
-{}
+{
+  "did:mesh:mcp-anonymous": {
+    "score": 449.99999568333334,
+    "lastUpdatedUtc": "2026-07-13T08:27:01.649565Z",
+    "lastPositiveSignalUtc": "2026-07-13T08:27:01.64801Z"
+  },
+  "did:mesh:direct-slack-token-87894fe04893": {
+    "score": 449.9999623138889,
+    "lastUpdatedUtc": "2026-07-13T08:27:01.493641Z",
+    "lastPositiveSignalUtc": "2026-07-13T08:27:01.480073Z"
+  }
+}

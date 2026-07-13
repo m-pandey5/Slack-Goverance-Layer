@@ -4,7 +4,10 @@
     "minor_version": 1
   },
   "display_information": {
-    "name": "governor"
+    "name": "Compass",
+    "description": "AI Agent Governance Layer — intercepts, scores, and controls every MCP tool call made by AI agents in your Slack workspace.",
+    "background_color": "#1a1f2e",
+    "long_description": "Compass is an enterprise governance proxy that sits between your Slack AI agents and Slack's MCP endpoint. Every tool call — from chat.postMessage to admin.users.invite — is evaluated against OWASP AIVSS risk scores, a ring-based trust model (Ring 0–3), and your organization's YAML policy before it executes. Sensitive operations require human approval via Block Kit buttons. Suspicious agents are circuit-broken automatically. All events are written to an immutable audit log. Built on Microsoft Agent Governance Toolkit."
   },
   "features": {
     "app_home": {
@@ -13,21 +16,15 @@
       "messages_tab_read_only_enabled": true
     },
     "bot_user": {
-      "display_name": "governor",
+      "display_name": "Compass",
       "always_online": true
     },
-    "shortcuts": [
-      {
-        "name": "Run sample shortcut",
-        "type": "global",
-        "callback_id": "sample_shortcut_id",
-        "description": "Runs a sample shortcut"
-      }
-    ],
     "slash_commands": [
       {
-        "command": "/sample-command",
-        "description": "Runs a sample command",
+        "command": "/compass",
+        "url": "https://YOUR_COMPASS_HOST/slack/commands",
+        "description": "Compass governance controls",
+        "usage_hint": "[status | agents | approvals | trust | circuit | suspend <agent-id> | policy reload]",
         "should_escape": false
       }
     ]
@@ -36,23 +33,43 @@
     "scopes": {
       "bot": [
         "channels:history",
+        "channels:read",
+        "channels:manage",
         "chat:write",
-        "commands"
+        "chat:write.public",
+        "commands",
+        "files:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "mpim:history",
+        "mpim:read",
+        "reactions:read",
+        "reactions:write",
+        "search:read",
+        "users:read",
+        "users:read.email"
       ]
     }
   },
   "settings": {
     "event_subscriptions": {
+      "request_url": "https://YOUR_COMPASS_HOST/slack/events",
       "bot_events": [
         "app_home_opened",
-        "message.channels"
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im"
       ]
     },
     "interactivity": {
-      "is_enabled": true
+      "is_enabled": true,
+      "request_url": "https://YOUR_COMPASS_HOST/slack/interactivity"
     },
     "org_deploy_enabled": true,
-    "socket_mode_enabled": true,
+    "socket_mode_enabled": false,
     "token_rotation_enabled": false
   }
 }

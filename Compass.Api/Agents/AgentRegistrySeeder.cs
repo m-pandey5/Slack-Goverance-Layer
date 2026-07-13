@@ -43,6 +43,7 @@ public sealed class AgentRegistrySeeder : IHostedService
                     Workspace = item.Workspace ?? "default",
                     ContactEmail = item.ContactEmail,
                     TrustScore = item.TrustScore,
+                    Ring = item.Ring,
                     AllowedTools = item.AllowedTools,
                     BlockedTools = item.BlockedTools
                 },
@@ -63,6 +64,7 @@ public sealed class AgentRegistrySeeder : IHostedService
         public string? Workspace { get; init; }
         public string? ContactEmail { get; init; }
         public double TrustScore { get; init; } = 500;
+        public int Ring { get; init; } = 2;
         public List<string> AllowedTools { get; init; } = [];
         public List<string> BlockedTools { get; init; } = [];
     }

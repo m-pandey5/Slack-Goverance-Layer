@@ -2,7 +2,10 @@ using System.Text;
 using AgentGovernance.Trust;
 using Compass.Api.Agents;
 using Compass.Api.Approvals;
+using Compass.Api.Policy;
 using Compass.Api.Security;
+using Compass.Api.Services;
+using Compass.Api.SRE;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Compass.Api.Controllers;
@@ -14,6 +17,10 @@ public sealed class SlackCommandController : ControllerBase
     private readonly IAgentRegistry _agentRegistry;
     private readonly IApprovalStore _approvalStore;
     private readonly FileTrustStore _trustStore;
+    private readonly ICircuitBreaker _circuitBreaker;
+    private readonly PolicyReloader _policyReloader;
+    private readonly SlackWebClient _slackWebClient;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<SlackCommandController> _logger;
 
     public SlackCommandController(
@@ -21,12 +28,20 @@ public sealed class SlackCommandController : ControllerBase
         IAgentRegistry agentRegistry,
         IApprovalStore approvalStore,
         FileTrustStore trustStore,
+        ICircuitBreaker circuitBreaker,
+        PolicyReloader policyReloader,
+        SlackWebClient slackWebClient,
+        IConfiguration configuration,
         ILogger<SlackCommandController> logger)
     {
         _verifier = verifier;
         _agentRegistry = agentRegistry;
         _approvalStore = approvalStore;
         _trustStore = trustStore;
+        _circuitBreaker = circuitBreaker;
+        _policyReloader = policyReloader;
+        _slackWebClient = slackWebClient;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -43,8 +58,11 @@ public sealed class SlackCommandController : ControllerBase
         }
 
         var form = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(rawBody);
-        var text = form.TryGetValue("text", out var value) ? value.ToString().Trim() : "";
-        var command = string.IsNullOrWhiteSpace(text) ? "status" : text.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].ToLowerInvariant();
+        var fullText = form.TryGetValue("text", out var value) ? value.ToString().Trim() : "";
+        var parts = fullText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var command = parts.Length > 0 ? parts[0].ToLowerInvariant() : "status";
+        var arg1 = parts.Length > 1 ? parts[1] : "";
+        var arg2 = parts.Length > 2 ? parts[2] : "";
 
         return command switch
         {
@@ -52,7 +70,11 @@ public sealed class SlackCommandController : ControllerBase
             "agents" => await Agents(),
             "approvals" => await Approvals(),
             "trust" => Trust(),
-            _ => Ok(Ephemeral("Try `/compass status`, `/compass agents`, `/compass approvals`, or `/compass trust`."))
+            "circuit" => Circuit(),
+            "suspend" => await Suspend(arg1),
+            "policy" when arg2 == "reload" || arg1 == "reload" => await PolicyReload(),
+            _ => Ok(Ephemeral(
+                "Commands: `/compass status` · `agents` · `approvals` · `trust` · `circuit` · `suspend <agent-id>` · `policy reload`"))
         };
     }
 
@@ -60,7 +82,9 @@ public sealed class SlackCommandController : ControllerBase
     {
         var agents = await _agentRegistry.ListAgentsAsync(HttpContext.RequestAborted);
         var approvals = await _approvalStore.ListPendingAsync(HttpContext.RequestAborted);
-        return Ok(Ephemeral($"Compass is online. Agents: {agents.Count}. Pending approvals: {approvals.Count}."));
+        var openCircuits = _circuitBreaker.GetAllStatuses().Values.Count(s => s.IsOpen);
+        return Ok(Ephemeral(
+            $"Compass is online. Agents: {agents.Count} | Pending approvals: {approvals.Count} | Open circuits: {openCircuits}"));
     }
 
     private async Task<IActionResult> Agents()
@@ -72,7 +96,7 @@ public sealed class SlackCommandController : ControllerBase
         }
 
         var lines = agents.Select(agent =>
-            $"• `{agent.AgentId}` — {agent.Name} owner={agent.Owner} trust={agent.TrustScore}");
+            $"• `{agent.AgentId}` — {agent.Name} ring={agent.Ring} trust={agent.TrustScore:0} {(agent.Revoked ? "🚫 SUSPENDED" : "")}");
         return Ok(Ephemeral(string.Join('\n', lines)));
     }
 
@@ -103,6 +127,77 @@ public sealed class SlackCommandController : ControllerBase
             .Select(pair => $"• `{pair.Key}` — {pair.Value:0}");
 
         return Ok(Ephemeral(string.Join('\n', lines)));
+    }
+
+    private IActionResult Circuit()
+    {
+        var statuses = _circuitBreaker.GetAllStatuses();
+        if (statuses.Count == 0)
+        {
+            return Ok(Ephemeral("No circuit breaker state yet."));
+        }
+
+        var lines = statuses.Select(kvp =>
+        {
+            var s = kvp.Value;
+            var icon = s.IsOpen ? ":red_circle: OPEN" : ":large_green_circle: CLOSED";
+            var reset = s.ResetAt.HasValue ? $" resets <t:{s.ResetAt.Value.ToUnixTimeSeconds()}:R>" : "";
+            return $"• `{kvp.Key}` — {icon} ({s.FailureCount} failures){reset}";
+        });
+
+        return Ok(Ephemeral(string.Join('\n', lines)));
+    }
+
+    private async Task<IActionResult> Suspend(string agentId)
+    {
+        if (string.IsNullOrWhiteSpace(agentId))
+        {
+            return Ok(Ephemeral("Usage: `/compass suspend <agent-id>`"));
+        }
+
+        var agent = await _agentRegistry.GetAgentAsync(agentId, HttpContext.RequestAborted);
+        if (agent is null)
+        {
+            return Ok(Ephemeral($"Agent `{agentId}` not found."));
+        }
+
+        await _agentRegistry.SuspendAgentAsync(agentId, HttpContext.RequestAborted);
+
+        var alertsChannel = _configuration["Slack:AlertsChannel"];
+        if (!string.IsNullOrWhiteSpace(alertsChannel))
+        {
+            await _slackWebClient.PostMessageAsync(
+                alertsChannel,
+                $":no_entry: *Compass kill-switch* — agent `{agentId}` ({agent.Name}) suspended via slash command.",
+                cancellationToken: HttpContext.RequestAborted);
+        }
+
+        _logger.LogWarning("[kill-switch] Agent suspended via slash command agent={AgentId}", agentId);
+        return Ok(Ephemeral($":no_entry: Agent `{agentId}` ({agent.Name}) has been suspended. All future calls will be blocked."));
+    }
+
+    private async Task<IActionResult> PolicyReload()
+    {
+        try
+        {
+            _policyReloader.Reload();
+
+            var alertsChannel = _configuration["Slack:AlertsChannel"];
+            if (!string.IsNullOrWhiteSpace(alertsChannel))
+            {
+                await _slackWebClient.PostMessageAsync(
+                    alertsChannel,
+                    ":arrows_counterclockwise: *Compass policies reloaded* via `/compass policy reload`.",
+                    cancellationToken: HttpContext.RequestAborted);
+            }
+
+            return Ok(Ephemeral(":white_check_mark: Compass policies reloaded successfully."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Policy reload failed via slash command.");
+            return Ok(Ephemeral($":x: Policy reload failed: {ex.Message}"));
+        }
     }
 
     private static object Ephemeral(string text)

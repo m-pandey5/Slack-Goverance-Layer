@@ -12,4 +12,6 @@ public interface IAgentRegistry
         string proxyToken,
         AgentRecord agent,
         CancellationToken cancellationToken = default);
+
+    Task SuspendAgentAsync(string agentId, CancellationToken cancellationToken = default);
 }

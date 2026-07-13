@@ -1,0 +1,49 @@
+services:
+  compass:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Slack__BotToken=${SLACK_BOT_TOKEN}
+      - Slack__SigningSecret=${SLACK_SIGNING_SECRET}
+      - Slack__AlertsChannel=${SLACK_ALERTS_CHANNEL:-#compass-alerts}
+      - Slack__McpBearerToken=${SLACK_MCP_BEARER_TOKEN}
+      - Approvals__Channel=${APPROVALS_CHANNEL:-#compass-approvals}
+      - ProxyTokens__RedisConnectionString=redis:6379
+      - Audit__FilePath=/app/data/audit.jsonl
+      - Agents__FilePath=/app/data/agents.json
+    volumes:
+      - compass-data:/app/data
+      - compass-trust:/app/trust
+      - ./Compass.Api/policies:/app/policies
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  compass-data:
+  compass-trust:
+  redis-data:

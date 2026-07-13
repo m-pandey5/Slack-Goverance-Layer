@@ -80,6 +80,24 @@ public sealed class SlackWebClient
             cancellationToken);
     }
 
+    public async Task PostAlertAsync(
+        string agentId,
+        string toolName,
+        string reason,
+        double? riskScore = null,
+        CancellationToken cancellationToken = default)
+    {
+        var alertsChannel = _configuration["Slack:AlertsChannel"];
+        if (string.IsNullOrWhiteSpace(alertsChannel))
+        {
+            return;
+        }
+
+        var riskPart = riskScore.HasValue ? $" | AIVSS: *{riskScore:F1}*" : "";
+        var text = $":shield: *Compass blocked* `{toolName}` by `{agentId}` — reason: `{reason}`{riskPart}";
+        await PostMessageAsync(alertsChannel, text, cancellationToken: cancellationToken);
+    }
+
     private async Task PostMessageCoreAsync(
         string channel,
         string text,

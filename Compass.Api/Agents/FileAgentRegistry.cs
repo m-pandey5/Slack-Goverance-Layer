@@ -59,6 +59,26 @@ public sealed class FileAgentRegistry : IAgentRegistry
         }
     }
 
+    public async Task SuspendAgentAsync(string agentId, CancellationToken cancellationToken = default)
+    {
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            var store = await ReadStoreCoreAsync(cancellationToken);
+            if (!store.Agents.TryGetValue(agentId, out var agent))
+            {
+                return;
+            }
+
+            store.Agents[agentId] = agent with { Revoked = true };
+            await WriteStoreCoreAsync(store, cancellationToken);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
     private async Task<AgentRegistryStore> ReadStoreAsync(CancellationToken cancellationToken)
     {
         await _mutex.WaitAsync(cancellationToken);

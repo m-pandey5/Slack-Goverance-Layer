@@ -1,19 +1,99 @@
 apiVersion: governance.toolkit/v1
 name: mcp-tools-policy
 default_action: allow
+
 rules:
-  - name: deny-admin-tools
+  # ── HARD DENY: admin privilege escalation ────────────────────────────────
+  - name: deny-admin-user-invite
     condition: "tool_name == 'admin.users.invite'"
     action: deny
+    priority: 300
+
+  - name: deny-admin-set-admin
+    condition: "tool_name == 'admin.users.setAdmin'"
+    action: deny
+    priority: 300
+
+  - name: deny-admin-apps-approve
+    condition: "tool_name == 'admin.apps.approve'"
+    action: deny
+    priority: 300
+
+  - name: deny-admin-teams-create
+    condition: "tool_name == 'admin.teams.create'"
+    action: deny
+    priority: 290
+
+  # ── HARD DENY: destructive data operations ───────────────────────────────
+  - name: deny-file-delete
+    condition: "tool_name == 'files.delete'"
+    action: deny
+    priority: 280
+
+  # ── HARD DENY: suspended / low-trust agents ──────────────────────────────
+  # TC-04: block agents whose dynamic trust score has fallen below 200
+  - name: block-low-trust-agents
+    condition: "trust_score < 200"
+    action: deny
+    priority: 270
+
+  # ── HUMAN APPROVAL: sensitive / irreversible operations ──────────────────
+  # TC-03
+  - name: require-approval-channel-archive
+    condition: "tool_name == 'conversations.archive'"
+    action: require_approval
     priority: 200
 
-  - name: require-approval-destructive
-    condition: "tool_name == 'conversations.archive'"
+  - name: require-approval-channel-kick
+    condition: "tool_name == 'conversations.kick'"
+    action: require_approval
+    priority: 200
+
+  - name: require-approval-file-upload
+    condition: "tool_name == 'files.getUploadURLExternal'"
+    action: require_approval
+    priority: 190
+
+  # ── RING 3: untrusted/external agents ────────────────────────────────────
+  # Ring 3 agents can only do READ_ONLY and WRITE_BENIGN (chat.postMessage)
+  - name: ring3-deny-write-sensitive
+    condition: "ring == 3 and tool_name == 'conversations.create'"
+    action: deny
+    priority: 250
+
+  - name: ring3-deny-invite
+    condition: "ring == 3 and tool_name == 'conversations.invite'"
+    action: deny
+    priority: 250
+
+  - name: ring3-deny-rename
+    condition: "ring == 3 and tool_name == 'conversations.rename'"
+    action: deny
+    priority: 250
+
+  # ── AIVSS HIGH RISK: score >= 7.0 → require human approval ───────────────
+  - name: high-aivss-require-approval
+    condition: "aivss_score >= 7.0"
     action: require_approval
     priority: 180
 
+  # ── RATE LIMITS ───────────────────────────────────────────────────────────
+  # TC-02
   - name: rate-limit-search
     condition: "tool_name == 'search_messages'"
     action: rate_limit
     limit: "10/minute"
     priority: 100
+
+  - name: rate-limit-chat-post
+    condition: "tool_name == 'chat.postMessage'"
+    action: rate_limit
+    limit: "30/minute"
+    priority: 90
+
+  # TC-08: collective rate limit across all agents per workspace
+  - name: global-rate-limit-all-writes
+    condition: "tool_name != 'conversations.history' and tool_name != 'conversations.list' and tool_name != 'users.list'"
+    action: rate_limit
+    limit: "200/minute"
+    priority: 50

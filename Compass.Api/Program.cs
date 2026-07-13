@@ -5,9 +5,12 @@ using AgentGovernance.Trust;
 using Compass.Api.Agents;
 using Compass.Api.Audit;
 using Compass.Api.Approvals;
+using Compass.Api.Policy;
+using Compass.Api.Risk;
 using Compass.Api.Services;
 using Compass.Api.Mcp;
 using Compass.Api.Security;
+using Compass.Api.SRE;
 using Compass.Api.TokenStore;
 using StackExchange.Redis;
 
@@ -17,12 +20,25 @@ var policyDirectory = ResolvePolicyDirectory(builder.Environment.ContentRootPath
 
 builder.Services.AddControllers();
 builder.Services.AddDataProtection();
+
+// Core infrastructure
 builder.Services.AddSingleton<SlackRequestVerifier>();
 builder.Services.AddSingleton<ICompassAuditSink, FileCompassAuditSink>();
 builder.Services.AddSingleton<TrustScoreEventHandler>();
 builder.Services.AddSingleton<IApprovalStore, FileApprovalStore>();
 builder.Services.AddSingleton<IApprovalExecutor, ApprovalExecutor>();
 builder.Services.AddSingleton<IMcpForwarder, SlackMcpForwarder>();
+
+// SRE — circuit breaker
+builder.Services.AddSingleton<ICircuitBreaker, InMemoryCircuitBreaker>();
+
+// Risk — AIVSS scorer
+builder.Services.AddSingleton<AivssScorer>();
+
+// Policy hot reload
+builder.Services.AddSingleton<PolicyReloader>();
+
+// Trust store
 builder.Services.AddSingleton(provider =>
 {
     var environment = provider.GetRequiredService<IWebHostEnvironment>();
@@ -34,6 +50,7 @@ builder.Services.AddSingleton(provider =>
         allowedBaseDirectory: trustDirectory);
 });
 
+// Governance kernel — singleton so PolicyWatcher can call ReloadPolicies()
 builder.Services.AddSingleton(_ => new GovernanceKernel(new GovernanceOptions
 {
     PolicyPaths =
@@ -59,6 +76,7 @@ builder.Services.AddHttpClient("slack-mcp");
 builder.Services.AddHttpClient("slack-api");
 builder.Services.AddHttpClient<SlackWebClient>();
 
+// Approval pipeline
 var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
 if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
 {
@@ -70,6 +88,7 @@ else
     builder.Services.AddSingleton<IApprovalDecisionPublisher, LocalApprovalDecisionPublisher>();
 }
 
+// Agent registry + token store
 var redisConnectionString = builder.Configuration["ProxyTokens:RedisConnectionString"];
 if (!string.IsNullOrWhiteSpace(redisConnectionString))
 {
@@ -86,9 +105,11 @@ else
 
 builder.Services.AddHostedService<ProxyTokenSeeder>();
 builder.Services.AddHostedService<AgentRegistrySeeder>();
+builder.Services.AddHostedService<PolicyWatcher>();
 
 var app = builder.Build();
 
+// Wire governance event pipeline
 var kernel = app.Services.GetRequiredService<GovernanceKernel>();
 var auditSink = app.Services.GetRequiredService<ICompassAuditSink>();
 var trustHandler = app.Services.GetRequiredService<TrustScoreEventHandler>();
